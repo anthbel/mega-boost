@@ -96,6 +96,30 @@ class TogoEtlTest(unittest.TestCase):
         bronze_2022 = pd.read_csv(os.path.join(self.out, "2022.csv"))
         self.assertEqual(bronze_2022["ORDONNANCER"].tolist(), [row[-3] * 10 for row in ROWS_2022])
 
+    def test_health_func_sub_from_cofog_level_2(self):
+        # One health line per COFOG level-2 code 071-076; executed amounts tell the lines apart.
+        health_rows = [
+            [2022, "A10", f"Health unit {code}", "FINANCEMENTS INTERNES", "REGION MARITIME", "Pref 10",
+             "07", code, code + "0", "3", "E0", "E000", "E00000", f"D00000000010{i}", 7000 + i, 7000 + i, 7000 + i]
+            for i, code in enumerate(["071", "072", "073", "074", "075", "076"])
+        ]
+        write_workbook(os.path.join(self.input_dir, "BUDGET part2.xlsx"),
+                       {SHEET_NAME: [COLS] + ROWS_2022 + health_rows})
+
+        run_script(NB, env={"INPUT_DIR": self.input_dir, "OUTPUT_DIR": self.out})
+
+        gold = pd.read_csv(os.path.join(self.out, "tgo_boost_gold.csv"))
+        func_sub = gold[gold["executed"] >= 7000].set_index("executed")["func_sub"]
+        self.assertEqual(func_sub.where(func_sub.notna(), None).to_dict(), {
+            7000: None,                              # 071 medical products
+            7001: "Primary and Secondary Health",    # 072 outpatient services
+            7002: "Tertiary and Quaternary Health",  # 073 hospital services
+            7003: "Primary and Secondary Health",    # 074 public health services
+            7004: None,                              # 075 R&D health
+            7005: None,                              # 076 health n.e.c.
+        })
+        self.assertTrue(gold.loc[gold["executed"] >= 7000, "func"].eq("Health").all())
+
 
 if __name__ == "__main__":
     unittest.main()

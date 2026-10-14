@@ -215,7 +215,14 @@ def map_func_sub(row):
         case "06":
             if row["CODE_FUNC2"] == "063":
                 return "Water Supply"
-        # For "07"(Health) We don't have enough information to group by primary secondary tertiary
+        # Health: outpatient (072) and public health (074) services are primary and secondary,
+        # hospital services (073) tertiary and quaternary; 071, 075 and 076 have no func_sub
+        case "07":
+            match row["CODE_FUNC2"]:
+                case "072" | "074":
+                    return "Primary and Secondary Health"
+                case "073":
+                    return "Tertiary and Quaternary Health"
 
 df_silver["func_sub"] = df_silver.apply(map_func_sub, axis=1)
 
