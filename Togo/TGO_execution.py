@@ -1,15 +1,18 @@
 # Databricks notebook source
-# Builds the budget-execution fact table for Togo, in pandas without Spark: the
-# silver lines grouped by the dimension columns below, with the allocation and
-# execution amounts summed. The only check is that every line gets a source of
-# funding.
+# Builds the budget-execution tables for Togo, in pandas without Spark: the silver
+# lines grouped by the dimension columns below, with the allocation and execution
+# amounts summed. tgo_execution holds the dashboard's breakdowns; tgo_execution_detail
+# keeps each budget line (imputation) with its action, services (admin3 to admin5),
+# function (func3) and economic classification (econ1 to econ4). The only check is
+# that every line gets a source of funding.
 #
 # Inputs
 #   SILVER_CSV  tgo_2021_onward_boost_silver.csv written by TGO_ETL.py
-#   OUTPUT_DIR  where tgo_execution.csv goes
+#   OUTPUT_DIR  where tgo_execution.csv and tgo_execution_detail.csv go
 # With DB_BACKEND=postgres neither is used: the silver table is read from
 # boost_intermediate.tgo_2021_onward_boost_silver of the PostgreSQL database in
-# POSTGRES_DSN and the output replaces boost.tgo_execution (postgres_tables.py).
+# POSTGRES_DSN and the outputs replace boost.tgo_execution and
+# boost.tgo_execution_detail (postgres_tables.py).
 import os
 
 import numpy as np
@@ -57,6 +60,28 @@ DIMENSIONS = [
 ]
 MEASURES = list(MEASURE_SOURCES.values())
 
+# Silver columns the detail table adds to the fact table's keys
+DETAIL_SOURCES = {
+    'CODE_ACTION': 'action_code', 'ACTION': 'action',
+    'CODE_ADMIN3': 'admin3_code', 'ADMIN3': 'admin3',
+    'CODE_ADMIN4': 'admin4_code', 'ADMIN4': 'admin4',
+    'CODE_ADMIN5': 'admin5_code', 'CODE_FUNC3': 'func3_code',
+    'CODE_ECON2': 'econ2_code', 'ECON2': 'econ2',
+    'CODE_ECON3': 'econ3_code', 'ECON3': 'econ3',
+    'CODE_ECON4': 'econ4_code', 'ECON4': 'econ4',
+    'CODE_IMPUTATION': 'imputation',
+}
+DETAIL_DIMENSIONS = [
+    'country_name', 'year',
+    'budget_type_code', 'budget_type',
+    'admin2_code', 'admin2', 'admin2_short',
+    'prog_code', 'prog', 'action_code', 'action',
+    'admin3_code', 'admin3', 'admin4_code', 'admin4', 'admin5_code', 'func3_code',
+    'econ1_code', 'econ1', 'econ2_code', 'econ2', 'econ3_code', 'econ3', 'econ4_code', 'econ4',
+    'funding_code', 'funder', 'gender_code', 'green_code', 'social_code',
+    'imputation',
+]
+
 # Source of funding, from the ADMIN5 label of internal resources and is_foreign
 INTERNAL = 'FINANCEMENTS INTERNES'
 INTERNAL_FUNDING = {
@@ -75,7 +100,8 @@ CAPITAL_ECON1 = '5'
 
 # COMMAND ----------
 
-source_columns = list(DIMENSION_SOURCES) + list(MEASURE_SOURCES) + ['year', 'is_foreign', 'ADMIN5', 'CODE_ADMIN4', 'ADMIN4']
+source_columns = (list(DIMENSION_SOURCES) + list(MEASURE_SOURCES) + list(DETAIL_SOURCES)
+                  + ['year', 'is_foreign', 'ADMIN5'])
 if DB_BACKEND == 'postgres':
     silver = postgres_tables.read_table('prd_mega', 'boost_intermediate', 'tgo_2021_onward_boost_silver',
                                         columns=source_columns)
@@ -111,14 +137,25 @@ t['project'] = silver['ADMIN4'].where(capital)
 
 # COMMAND ----------
 
-# dropna=False keeps NULL dimension values as groups; sum(min_count=1) gives NULL
-# for a group with no amounts
-tgo_execution = (t.groupby(DIMENSIONS, dropna=False)[MEASURES].sum(min_count=1)
-                 .reset_index()[DIMENSIONS + MEASURES])
+detail = pd.concat([t, silver[list(DETAIL_SOURCES)].rename(columns=DETAIL_SOURCES)], axis=1)
 
-if DB_BACKEND == 'postgres':
-    postgres_tables.replace_table(tgo_execution, 'prd_mega', 'boost', 'tgo_execution')
-else:
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    tgo_execution.to_csv(os.path.join(OUTPUT_DIR, 'tgo_execution.csv'), index=False)
-print(f'{len(tgo_execution):>7} rows  tgo_execution (from {len(silver)} silver rows)')
+# COMMAND ----------
+
+def group(frame, dimensions):
+    # dropna=False keeps NULL dimension values as groups; sum(min_count=1) gives NULL
+    # for a group with no amounts
+    return (frame.groupby(dimensions, dropna=False)[MEASURES].sum(min_count=1)
+            .reset_index()[dimensions + MEASURES])
+
+
+outputs = {
+    'tgo_execution': group(t, DIMENSIONS),
+    'tgo_execution_detail': group(detail, DETAIL_DIMENSIONS),
+}
+for name, table in outputs.items():
+    if DB_BACKEND == 'postgres':
+        postgres_tables.replace_table(table, 'prd_mega', 'boost', name)
+    else:
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        table.to_csv(os.path.join(OUTPUT_DIR, f'{name}.csv'), index=False)
+    print(f'{len(table):>7} rows  {name} (from {len(silver)} silver rows)')

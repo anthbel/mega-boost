@@ -73,7 +73,9 @@ export OUTPUT_DIR='/path/to/execution/output/'
 python TGO_execution.py
 ```
 
-With `DB_BACKEND=postgres` it reads `boost_intermediate.tgo_2021_onward_boost_silver` and replaces `boost.tgo_execution`. Tests: `cd tests && python -m unittest test_togo_execution`.
+It also writes `tgo_execution_detail`, one row per budget line (imputation): the same keys without function, BOOST econ category, PIP flag, markers' labels and project, plus action, services (`admin3`, `admin4`, `admin5_code`), `func3_code` and the economic classification down to `econ4`, with the same eight amounts. The Excel reports that reproduce the DGBF's workbooks (compte administratif, chapter and project tables) read it.
+
+With `DB_BACKEND=postgres` it reads `boost_intermediate.tgo_2021_onward_boost_silver` and replaces `boost.tgo_execution` and `boost.tgo_execution_detail`. Tests: `cd tests && python -m unittest test_togo_execution`.
 
 ## Tables in PostgreSQL
 
