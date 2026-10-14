@@ -62,6 +62,19 @@ python TGO_aggregate.py
 ### Outputs
 One CSV per table the dashboard reads, in `OUTPUT_DIR`: `pov_expenditure_by_country_year`, `expenditure_by_country_func_econ_year`, `expenditure_by_country_geo0_func_sub_year`, `expenditure_by_country_geo1_year`, `expenditure_and_outcome_by_country_geo1_func_year`, `edu_private_expenditure_by_country_year`, `health_private_expenditure_by_country_year` and `data_availability`.
 
+## Budget-Execution Fact Table
+
+[TGO_execution.py](TGO_execution.py) builds `tgo_execution` from the silver table written by `TGO_ETL.py`: one row per year, budget type, ministry (admin2), programme, function, economic nature (econ1 and the BOOST econ category), source of funding, funder, gender, green and social markers and, on capital lines only, project, with the allocations (`dotation_ae`, `dotation_initiale`, `dotation_finale`) and execution stages (`engagement`, `liquidation`, `ordonnancer_ri`, `ordonnancer_re`, `ordonnancer`) summed.
+
+```
+export SILVER_CSV='/path/to/output/dir/tgo_2021_onward_boost_silver.csv'
+export OUTPUT_DIR='/path/to/execution/output/'
+
+python TGO_execution.py
+```
+
+With `DB_BACKEND=postgres` it reads `boost_intermediate.tgo_2021_onward_boost_silver` and replaces `boost.tgo_execution`. Tests: `cd tests && python -m unittest test_togo_execution`.
+
 ## Tables in PostgreSQL
 
 Off databricks, both scripts can keep their tables in a PostgreSQL database instead of CSVs, in the layout the RPF country dashboard reads with its own `DB_BACKEND=postgres`: a database named `prd_mega`, with schemas named as in Unity Catalog.
