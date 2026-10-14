@@ -213,16 +213,29 @@ pov_expenditure_by_country_year = expenditure_by_country_year.merge(
     on=['country_name', 'year'], how='left')
 
 # expenditure_and_outcome_by_country_geo1_func_year: rank regions by per-capita
-# real spending and by outcome (school attendance for Education, health index for Health)
-t = expenditure_by_country_geo1_func_year.merge(hd_index, on=['country_name', 'adm1_name', 'year'])
-t['outcome_index'] = np.select([t['func'] == 'Education', t['func'] == 'Health'],
-                               [t['attendance_6to17yo'], t['health_index']], np.nan)
-t = t[t['outcome_index'].notna()].copy()
+# real spending and by outcome (school attendance for Education, health index for Health).
+# Each region, func and spending year takes the outcome of the latest GDL year at or
+# before the spending year with a value for that func; outcome_year is that GDL year.
+# Ranks are within a spending year.
+outcome_columns = {'Education': 'attendance_6to17yo', 'Health': 'health_index'}
+outcomes = pd.concat(
+    [hd_index[['country_name', 'adm1_name', 'year', column]]
+        .rename(columns={'year': 'outcome_year', column: 'outcome_index'}).assign(func=func)
+     for func, column in outcome_columns.items()],
+    ignore_index=True)
+outcomes = outcomes[outcomes['outcome_index'].notna()]
+outcomes['outcome_index'] = outcomes['outcome_index'].astype(float)
+t = expenditure_by_country_geo1_func_year.merge(outcomes, on=['country_name', 'adm1_name', 'func'])
+t = t[t['outcome_year'] <= t['year']]
+latest = t.groupby(['country_name', 'adm1_name', 'func', 'year'])['outcome_year'].transform('max')
+t = t[t['outcome_year'] == latest].copy()
+t['outcome_year'] = t['outcome_year'].astype('Int64')
 g = t.groupby(['country_name', 'year', 'func'])
 t['rank_per_capita_real_exp'] = g['per_capita_real_expenditure'].rank(method='min', ascending=False).astype('Int64')
 t['rank_outcome_index'] = g['outcome_index'].rank(method='min', ascending=False).astype('Int64')
 expenditure_and_outcome_by_country_geo1_func_year = expenditure_by_country_geo1_func_year.merge(
-    t[['country_name', 'adm1_name', 'year', 'func', 'outcome_index', 'rank_per_capita_real_exp', 'rank_outcome_index']],
+    t[['country_name', 'adm1_name', 'year', 'func', 'outcome_index', 'rank_per_capita_real_exp', 'rank_outcome_index',
+       'outcome_year']],
     on=['country_name', 'adm1_name', 'year', 'func'], how='left')
 
 # edu_private_expenditure_by_country_year: ICP education spending minus public education spending

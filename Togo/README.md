@@ -62,6 +62,8 @@ python TGO_aggregate.py
 ### Outputs
 One CSV per table the dashboard reads, in `OUTPUT_DIR`: `pov_expenditure_by_country_year`, `expenditure_by_country_func_econ_year`, `expenditure_by_country_geo0_func_sub_year`, `expenditure_by_country_geo1_year`, `expenditure_and_outcome_by_country_geo1_func_year`, `edu_private_expenditure_by_country_year`, `health_private_expenditure_by_country_year` and `data_availability`.
 
+In `expenditure_and_outcome_by_country_geo1_func_year`, each region's education or health spending in a year is paired with the Global Data Lab outcome (`attendance_6to17yo` or `health_index`) of the latest year at or before it that has a value; `outcome_year` is that year. Tests: `cd tests && python -m unittest test_togo_aggregate`.
+
 ## Budget-Execution Fact Table
 
 [TGO_execution.py](TGO_execution.py) builds `tgo_execution` from the silver table written by `TGO_ETL.py`: one row per year, budget type, ministry (admin2), programme, function, economic nature (econ1 and the BOOST econ category), source of funding, funder, gender, green and social markers and, on capital lines only, project, with the allocations (`dotation_ae`, `dotation_initiale`, `dotation_finale`) and execution stages (`engagement`, `liquidation`, `ordonnancer_ri`, `ordonnancer_re`, `ordonnancer`) summed.
